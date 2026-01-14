@@ -1,0 +1,13 @@
+.git
+.gitignore
+README.md
+logs/
+*.log
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.local
+.DS_Store
+*.md
