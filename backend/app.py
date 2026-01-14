@@ -248,9 +248,16 @@ def create_nested_proxmox_task(config):
         disk_size = config.get("disk_size", "100G")
         vm_config["scsi0"] = f"{storage}:{disk_size}"
 
-        # Add ISO if provided
+        # Add cloud-init for guest/guest credentials
+        vm_config["ide2"] = f"{storage}:cloudinit"
+        vm_config["ciuser"] = "guest"
+        vm_config["cipassword"] = "guest"
+        vm_config["ipconfig0"] = "ip=dhcp"
+
+        # Add ISO if provided (uses ide3 since ide2 is cloud-init)
         if config.get("iso"):
-            vm_config["ide2"] = f"{config['iso']},media=cdrom"
+            vm_config["ide3"] = f"{config['iso']},media=cdrom"
+            vm_config["boot"] = "order=scsi0;ide3"
 
         add_log(f"Creating VM with config: {vm_config['name']}")
 

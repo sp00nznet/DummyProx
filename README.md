@@ -31,7 +31,7 @@ Think of it as a "lab in a box" - spin up an entire virtualized infrastructure f
 | **One-Click Nested Proxmox** | Deploy a fully functional Proxmox hypervisor as a VM |
 | **Auto VM Provisioning** | Automatically create 10-15 VMs with a single click |
 | **Server-Themed Names** | VMs get realistic names like `mongo-01`, `nginx-02`, `kafka-03` |
-| **SSH Ready** | All VMs accessible via `ssh guest@<ip>` with password `guest` |
+| **SSH Ready** | Nested Proxmox and all VMs accessible via `ssh guest@<ip>` with password `guest` |
 | **Easy Cleanup** | Destroy the entire nested environment with one button |
 | **Real-Time Logs** | Watch operations happen live in the web interface |
 | **Dockerized** | Runs anywhere Docker runs |
