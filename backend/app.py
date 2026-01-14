@@ -28,13 +28,13 @@ state = {
     "logs": []
 }
 
-# VM name themes
+# VM name themes - server/application focused
 THEMES = {
-    "databases": ["mongo", "postgres", "mysql", "redis", "elastic", "cassandra", "influx", "neo4j", "couch", "dynamo", "fauna", "supabase", "cockroach", "timescale", "clickhouse"],
-    "planets": ["mercury", "venus", "earth", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto", "ceres", "eris", "haumea", "makemake", "sedna", "quaoar"],
-    "animals": ["lion", "tiger", "bear", "wolf", "eagle", "hawk", "shark", "whale", "dolphin", "panther", "cobra", "falcon", "raven", "fox", "lynx"],
-    "elements": ["hydrogen", "helium", "lithium", "carbon", "nitrogen", "oxygen", "neon", "sodium", "iron", "copper", "silver", "gold", "platinum", "titanium", "uranium"],
-    "greek": ["zeus", "hera", "apollo", "athena", "ares", "hermes", "artemis", "poseidon", "hades", "demeter", "dionysus", "hephaestus", "aphrodite", "chronos", "atlas"]
+    "databases": ["mongo", "postgres", "mysql", "redis", "elastic", "cassandra", "influx", "neo4j", "couch", "mariadb", "sqlite", "cockroach", "timescale", "clickhouse", "dynamo"],
+    "webservers": ["nginx", "apache", "caddy", "traefik", "haproxy", "envoy", "varnish", "lighttpd", "tomcat", "jetty", "gunicorn", "uvicorn", "puma", "passenger", "httpd"],
+    "messaging": ["kafka", "rabbit", "nats", "pulsar", "zeromq", "activemq", "mosquitto", "emqx", "redis-mq", "nsq", "celery", "sidekiq", "resque", "bull", "bee"],
+    "monitoring": ["prometheus", "grafana", "datadog", "nagios", "zabbix", "influx", "telegraf", "jaeger", "zipkin", "sentry", "newrelic", "splunk", "logstash", "kibana", "fluentd"],
+    "containers": ["docker", "podman", "containerd", "kubernetes", "nomad", "swarm", "rancher", "portainer", "harbor", "registry", "buildah", "skopeo", "crio", "runc", "lxc"]
 }
 
 
