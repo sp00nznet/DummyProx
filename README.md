@@ -40,18 +40,36 @@ Think of it as a "lab in a box" - spin up an entire virtualized infrastructure f
 
 ## Quick Start
 
-### Option 1: Docker Compose (Recommended)
+### One-Click Setup (Recommended)
 
+**Linux / macOS:**
 ```bash
 git clone https://github.com/your-repo/DummyProx.git
 cd DummyProx
+./setup.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+git clone https://github.com/your-repo/DummyProx.git
+cd DummyProx
+powershell -ExecutionPolicy Bypass -File setup.ps1
+```
+
+The setup script will:
+- Check for Docker installation
+- Build the container
+- Start DummyProx
+- Open your browser to `http://localhost:8080`
+
+### Manual Setup
+
+**Docker Compose:**
+```bash
 docker-compose up -d
 ```
 
-Open **http://localhost:8080** in your browser.
-
-### Option 2: Docker
-
+**Docker:**
 ```bash
 docker build -t dummyprox .
 docker run -d -p 8080:80 --name dummyprox dummyprox
@@ -124,6 +142,8 @@ DummyProx/
 │   └── requirements.txt       # Python dependencies
 ├── frontend/
 │   └── index.html             # Web UI (single-page app)
+├── setup.sh                   # One-click setup (Linux/macOS)
+├── setup.ps1                  # One-click setup (Windows)
 ├── Dockerfile                 # Multi-stage container build
 ├── docker-compose.yml         # Easy deployment config
 ├── nginx.conf                 # Reverse proxy setup
