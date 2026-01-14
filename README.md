@@ -1,1 +1,3 @@
 # DummyProx
+
+create a container with a web interface. this web interface will allow the user to automatically create a proxmox hypervisor on a proxmox hypervisor. it will then install 10-15 ultra simple vms inside this nested proxmox. each of these vms will be functional and ssh able. with a guest/guest account. make sure they come up with random names, themed ig mongo-01, mongo-02. provide a way to destroy the nested proxmox host easily. the user will have a simple host connection on the side of the screen where the provide proxmox server details. 
