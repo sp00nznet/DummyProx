@@ -18,8 +18,7 @@ RUN apt-get update && apt-get install -y \
     nginx \
     supervisor \
     curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /var/log/supervisor /var/log/nginx
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy backend
 WORKDIR /app
@@ -35,6 +34,9 @@ COPY nginx.conf /etc/nginx/sites-enabled/dummyprox
 
 # Configure supervisor
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Create log directories
+RUN mkdir -p /var/log/supervisor /var/log/nginx
 
 # Expose port
 EXPOSE 80
