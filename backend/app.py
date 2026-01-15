@@ -107,8 +107,9 @@ def download_and_upload_iso(proxmox, node, storage, iso_url, iso_name):
     add_log(f"Downloading {iso_name} from Proxmox mirror...")
 
     # Download to temp file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".iso") as tmp_file:
-        try:
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".iso") as tmp_file:
             response = requests.get(iso_url, stream=True, timeout=600)
             response.raise_for_status()
 
@@ -126,18 +127,45 @@ def download_and_upload_iso(proxmox, node, storage, iso_url, iso_name):
             tmp_path = tmp_file.name
             add_log("Download complete, uploading to Proxmox...")
 
-        except Exception as e:
-            add_log(f"Download failed: {str(e)}")
-            return None
+    except Exception as e:
+        add_log(f"Download failed: {str(e)}")
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+        return None
 
-    # Upload to Proxmox
+    # Upload to Proxmox using direct API call
     try:
+        # Get connection info from state
+        conn = state.get("connection", {})
+        host = conn.get("host")
+        port = conn.get("port", 8006)
+
+        # Get auth ticket from proxmox object
+        ticket = proxmox.get_tokens()[0]
+        csrf = proxmox.get_tokens()[1]
+
+        upload_url = f"https://{host}:{port}/api2/json/nodes/{node}/storage/{storage}/upload"
+
         with open(tmp_path, 'rb') as f:
-            proxmox.nodes(node).storage(storage).upload.post(
-                content='iso',
-                filename=iso_name,
-                file=f
+            files = {'filename': (iso_name, f, 'application/octet-stream')}
+            data = {'content': 'iso'}
+            headers = {'CSRFPreventionToken': csrf}
+            cookies = {'PVEAuthCookie': ticket}
+
+            resp = requests.post(
+                upload_url,
+                files=files,
+                data=data,
+                headers=headers,
+                cookies=cookies,
+                verify=False,
+                timeout=600
             )
+            resp.raise_for_status()
+
         add_log(f"ISO uploaded successfully to {storage}")
         return f"{storage}:iso/{iso_name}"
     except Exception as e:
@@ -145,10 +173,11 @@ def download_and_upload_iso(proxmox, node, storage, iso_url, iso_name):
         return None
     finally:
         # Clean up temp file
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
 
 
 def ensure_proxmox_iso(proxmox, node, storage="local"):
