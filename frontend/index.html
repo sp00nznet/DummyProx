@@ -593,9 +593,8 @@
     </main>
 
     <script>
-        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:5000/api'
-            : '/api';
+        // Always use relative /api path - nginx proxies to backend
+        const API_URL = '/api';
 
         let pollInterval = null;
         let themes = {};
