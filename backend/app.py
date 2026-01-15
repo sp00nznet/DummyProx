@@ -258,7 +258,7 @@ def create_nested_proxmox_task(config):
         # Add ISO if provided (uses ide3 since ide2 is cloud-init)
         if config.get("iso"):
             vm_config["ide3"] = f"{config['iso']},media=cdrom"
-            vm_config["boot"] = "order=scsi0;ide3"
+            vm_config["boot"] = "order=ide3;scsi0"  # Boot from ISO first
 
         add_log(f"Creating VM with config: {vm_config['name']}")
 
