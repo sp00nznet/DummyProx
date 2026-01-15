@@ -13,11 +13,12 @@ COPY backend/ .
 # Stage 2: Final image with nginx
 FROM python:3.11-slim
 
-# Install nginx, supervisor, and curl (for healthcheck)
+# Install nginx, supervisor, curl (for healthcheck), and genisoimage (for answer ISO)
 RUN apt-get update && apt-get install -y \
     nginx \
     supervisor \
     curl \
+    genisoimage \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy backend
