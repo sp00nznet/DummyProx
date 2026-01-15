@@ -82,6 +82,14 @@ try {
 }
 Write-Color "√ Cleanup complete" "Green"
 
+# Create log directories for volume mount
+$logDirs = @("logs", "logs/supervisor", "logs/nginx")
+foreach ($dir in $logDirs) {
+    if (-not (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+}
+
 # Build and run
 Write-Color "[4/5] Building and starting DummyProx..." "Yellow"
 Write-Host ""
