@@ -269,9 +269,15 @@ def create_nested_proxmox_task(config):
 
         # Start the VM if requested
         if config.get("start", True):
+            add_log("Waiting for VM to be ready...")
+            time.sleep(3)  # Give Proxmox time to finalize VM creation
             add_log("Starting nested Proxmox VM...")
-            proxmox.nodes(node).qemu(vmid).status.start.post()
-            add_log("Nested Proxmox VM started")
+            try:
+                proxmox.nodes(node).qemu(vmid).status.start.post()
+                add_log("Nested Proxmox VM started successfully")
+            except Exception as start_err:
+                add_log(f"Warning: Could not auto-start VM: {str(start_err)}")
+                add_log("Please start the VM manually from Proxmox UI")
 
         state["status"] = "nested_created"
         add_log("Nested Proxmox creation complete!")
