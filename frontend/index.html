@@ -706,13 +706,37 @@
                 const result = await api(`/storage?node=${node}`);
                 const storageSelect = document.getElementById('nestedStorage');
                 storageSelect.innerHTML = '';
+
+                // Add all storage that can hold VM disk images
+                let hasStorage = false;
                 result.storage.forEach(s => {
-                    if (s.content && (s.content.includes('images') || s.content.includes('rootdir'))) {
-                        storageSelect.innerHTML += `<option value="${s.storage}">${s.storage}</option>`;
+                    // Include storage that can hold images (disk images for VMs)
+                    // Content types: images, rootdir, or storage types like lvmthin, lvm, dir, zfspool
+                    const validTypes = ['lvmthin', 'lvm', 'dir', 'zfspool', 'rbd', 'nfs', 'cifs', 'btrfs'];
+                    const hasImages = s.content && (s.content.includes('images') || s.content.includes('rootdir'));
+                    const isValidType = validTypes.includes(s.type);
+
+                    if (hasImages || isValidType) {
+                        storageSelect.innerHTML += `<option value="${s.storage}">${s.storage} (${s.type})</option>`;
+                        hasStorage = true;
                     }
                 });
+
+                // Fallback: if no matching storage, show all storage
+                if (!hasStorage && result.storage.length > 0) {
+                    result.storage.forEach(s => {
+                        storageSelect.innerHTML += `<option value="${s.storage}">${s.storage} (${s.type})</option>`;
+                    });
+                }
+
+                // Default fallback option
+                if (storageSelect.innerHTML === '') {
+                    storageSelect.innerHTML = '<option value="local-lvm">local-lvm (default)</option>';
+                }
             } catch (error) {
                 console.error('Failed to load storage:', error);
+                // Provide default on error
+                document.getElementById('nestedStorage').innerHTML = '<option value="local-lvm">local-lvm (default)</option>';
             }
         }
 
