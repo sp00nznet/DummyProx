@@ -70,11 +70,15 @@ try {
 
 # Clean up old containers and images
 Write-Color "[3/5] Cleaning up old containers and images..." "Yellow"
-if ($useCompose) {
-    docker compose down --rmi all 2>$null
-} else {
-    docker rm -f dummyprox 2>$null
-    docker rmi dummyprox 2>$null
+try {
+    if ($useCompose) {
+        $null = docker compose down --rmi all 2>&1
+    } else {
+        $null = docker rm -f dummyprox 2>&1
+        $null = docker rmi dummyprox 2>&1
+    }
+} catch {
+    # Ignore errors - container/image may not exist
 }
 Write-Color "√ Cleanup complete" "Green"
 
