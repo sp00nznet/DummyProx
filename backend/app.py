@@ -372,6 +372,7 @@ def create_vms_task(config):
                     vm_config["ide2"] = f"{storage}:cloudinit"
                     vm_config["ciuser"] = "guest"
                     vm_config["cipassword"] = "guest"
+                    vm_config["ipconfig0"] = "ip=dhcp"
                     vm_config["sshkeys"] = ""
 
                 nested_proxmox.nodes(node).qemu.create(**vm_config)
