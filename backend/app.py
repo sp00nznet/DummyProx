@@ -243,9 +243,9 @@ def create_nested_proxmox_task(config):
             "agent": "enabled=1",
         }
 
-        # Add disk
+        # Add disk - strip 'G' suffix as Proxmox expects just the number for LVM
         storage = config.get("storage", "local-lvm")
-        disk_size = config.get("disk_size", "100G")
+        disk_size = config.get("disk_size", "100G").rstrip("Gg")
         vm_config["scsi0"] = f"{storage}:{disk_size}"
 
         # Add cloud-init for guest/guest credentials
