@@ -25,7 +25,7 @@ Write-Color "=========================================" "White"
 Write-Host ""
 
 # Check for Docker
-Write-Color "[1/4] Checking for Docker..." "Yellow"
+Write-Color "[1/5] Checking for Docker..." "Yellow"
 
 $dockerPath = Get-Command docker -ErrorAction SilentlyContinue
 if (-not $dockerPath) {
@@ -55,7 +55,7 @@ try {
 }
 
 # Check for docker-compose
-Write-Color "[2/4] Checking for Docker Compose..." "Yellow"
+Write-Color "[2/5] Checking for Docker Compose..." "Yellow"
 
 $useCompose = $false
 try {
@@ -68,18 +68,25 @@ try {
     Write-Color "Warning: Docker Compose not found, using docker build instead" "Yellow"
 }
 
+# Clean up old containers and images
+Write-Color "[3/5] Cleaning up old containers and images..." "Yellow"
+if ($useCompose) {
+    docker compose down --rmi all 2>$null
+} else {
+    docker rm -f dummyprox 2>$null
+    docker rmi dummyprox 2>$null
+}
+Write-Color "√ Cleanup complete" "Green"
+
 # Build and run
-Write-Color "[3/4] Building and starting DummyProx..." "Yellow"
+Write-Color "[4/5] Building and starting DummyProx..." "Yellow"
 Write-Host ""
 
 if ($useCompose) {
-    docker compose up -d --build
+    docker compose build --no-cache
+    docker compose up -d
 } else {
-    docker build -t dummyprox .
-
-    # Remove existing container if present
-    docker rm -f dummyprox 2>$null
-
+    docker build --no-cache -t dummyprox .
     docker run -d -p 8080:80 --name dummyprox dummyprox
 }
 
@@ -95,7 +102,7 @@ Write-Host ""
 Write-Color "√ DummyProx is now running" "Green"
 
 # Open browser
-Write-Color "[4/4] Opening web interface..." "Yellow"
+Write-Color "[5/5] Opening web interface..." "Yellow"
 $url = "http://localhost:8080"
 Start-Process $url
 
