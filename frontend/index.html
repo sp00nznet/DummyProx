@@ -501,18 +501,12 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>ISO Image <span style="color: #e74c3c;">*</span></label>
-                            <select id="nestedIso">
-                                <option value="">Select Proxmox ISO...</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
                             <label>Network Bridge</label>
                             <input type="text" id="nestedBridge" value="vmbr0">
                         </div>
                     </div>
-                    <div class="alert warning" style="margin-bottom: 15px;">
-                        You must select a Proxmox VE ISO. Upload one to your Proxmox storage if not listed.
+                    <div class="alert info" style="margin-bottom: 15px;">
+                        Latest Proxmox VE ISO will be automatically downloaded if needed.
                     </div>
                     <button id="createNestedBtn" class="btn btn-primary" onclick="createNested()" disabled>
                         Create Nested Proxmox
@@ -670,11 +664,10 @@
                 // Enable buttons
                 document.getElementById('createNestedBtn').disabled = false;
 
-                // Load storage and ISO options
+                // Load storage options
                 if (result.nodes.length > 0) {
                     nodeSelect.value = result.nodes[0];
                     loadStorage(result.nodes[0]);
-                    loadIsos(result.nodes[0]);
                 }
 
             } catch (error) {
@@ -723,33 +716,10 @@
             }
         }
 
-        async function loadIsos(node) {
-            try {
-                const isoSelect = document.getElementById('nestedIso');
-                isoSelect.innerHTML = '<option value="">Loading ISOs...</option>';
-
-                const result = await api(`/isos?node=${node}&storage=local`);
-                isoSelect.innerHTML = '<option value="">Select Proxmox ISO...</option>';
-
-                if (result.isos && result.isos.length > 0) {
-                    result.isos.forEach(iso => {
-                        const name = iso.volid.split('/').pop();
-                        isoSelect.innerHTML += `<option value="${iso.volid}">${name}</option>`;
-                    });
-                } else {
-                    isoSelect.innerHTML = '<option value="">No ISOs found - upload Proxmox ISO to local storage</option>';
-                }
-            } catch (error) {
-                console.error('Failed to load ISOs:', error);
-                document.getElementById('nestedIso').innerHTML = '<option value="">Error loading ISOs</option>';
-            }
-        }
-
         // Node change handler
         document.getElementById('node').addEventListener('change', (e) => {
             if (e.target.value) {
                 loadStorage(e.target.value);
-                loadIsos(e.target.value);
             }
         });
 
@@ -785,15 +755,9 @@
         // Create nested Proxmox
         async function createNested() {
             const node = document.getElementById('node').value;
-            const iso = document.getElementById('nestedIso').value;
 
             if (!node) {
                 alert('Please select a node');
-                return;
-            }
-
-            if (!iso) {
-                alert('Please select a Proxmox ISO image');
                 return;
             }
 
@@ -809,8 +773,7 @@
                         cores: parseInt(document.getElementById('nestedCores').value),
                         disk_size: document.getElementById('nestedDisk').value,
                         storage: document.getElementById('nestedStorage').value,
-                        bridge: document.getElementById('nestedBridge').value,
-                        iso: iso
+                        bridge: document.getElementById('nestedBridge').value
                     })
                 });
 
