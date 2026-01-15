@@ -229,6 +229,7 @@ def create_nested_proxmox_task(config):
         add_log(f"Using VMID: {vmid}")
 
         # Create the nested Proxmox VM
+        # cpu=host passes through host CPU features including VMX/SVM for nested virt
         vm_config = {
             "vmid": vmid,
             "name": config.get("name", "nested-proxmox"),
@@ -240,7 +241,6 @@ def create_nested_proxmox_task(config):
             "scsihw": "virtio-scsi-single",
             "boot": "order=scsi0;ide2",
             "agent": "enabled=1",
-            "nested": 1,  # Enable nested virtualization
         }
 
         # Add disk
