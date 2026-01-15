@@ -9,6 +9,7 @@ import random
 import time
 import threading
 import tempfile
+import subprocess
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from proxmoxer import ProxmoxAPI
@@ -203,6 +204,127 @@ def ensure_proxmox_iso(proxmox, node, storage="local"):
     return download_and_upload_iso(proxmox, node, storage, iso_url, iso_name)
 
 
+def create_answer_file(password="root", hostname="nested-proxmox"):
+    """Create Proxmox automated installer answer file content"""
+    # TOML format answer file for Proxmox VE 8.x automated installer
+    answer_content = f'''[global]
+keyboard = "en-us"
+country = "us"
+fqdn = "{hostname}.local"
+mailto = "admin@local"
+timezone = "UTC"
+root_password = "{password}"
+
+[network]
+source = "from-dhcp"
+
+[disk-setup]
+filesystem = "ext4"
+disk_list = ["sda"]
+'''
+    return answer_content
+
+
+def create_and_upload_answer_iso(proxmox, node, storage, password="root", hostname="nested-proxmox"):
+    """Create an ISO containing the answer file and upload to Proxmox"""
+    add_log("Creating automated installer answer file...")
+
+    iso_name = "proxmox-auto-answer.iso"
+
+    # Check if already exists
+    existing = check_iso_exists(proxmox, node, storage, iso_name)
+    if existing:
+        add_log(f"Answer ISO already available: {existing}")
+        return existing
+
+    tmp_dir = None
+    iso_path = None
+
+    try:
+        # Create temp directory for ISO contents
+        tmp_dir = tempfile.mkdtemp()
+        answer_path = os.path.join(tmp_dir, "answer.toml")
+
+        # Write answer file
+        answer_content = create_answer_file(password, hostname)
+        with open(answer_path, 'w') as f:
+            f.write(answer_content)
+
+        # Create ISO using genisoimage or mkisofs
+        iso_path = tempfile.mktemp(suffix=".iso")
+
+        try:
+            # Try genisoimage first (common on Debian/Ubuntu)
+            subprocess.run([
+                "genisoimage", "-o", iso_path,
+                "-V", "PROXMOX_ANSWER",
+                "-r", "-J",
+                tmp_dir
+            ], check=True, capture_output=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            try:
+                # Try mkisofs as fallback
+                subprocess.run([
+                    "mkisofs", "-o", iso_path,
+                    "-V", "PROXMOX_ANSWER",
+                    "-r", "-J",
+                    tmp_dir
+                ], check=True, capture_output=True)
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                add_log("Warning: Could not create answer ISO (genisoimage/mkisofs not available)")
+                add_log("Automated installation not available - manual install required")
+                return None
+
+        add_log("Answer ISO created, uploading to Proxmox...")
+
+        # Upload to Proxmox
+        conn = state.get("connection", {})
+        host = conn.get("host")
+        port = conn.get("port", 8006)
+
+        ticket = proxmox.get_tokens()[0]
+        csrf = proxmox.get_tokens()[1]
+
+        upload_url = f"https://{host}:{port}/api2/json/nodes/{node}/storage/{storage}/upload"
+
+        with open(iso_path, 'rb') as f:
+            files = {'filename': (iso_name, f, 'application/octet-stream')}
+            data = {'content': 'iso'}
+            headers = {'CSRFPreventionToken': csrf}
+            cookies = {'PVEAuthCookie': ticket}
+
+            resp = requests.post(
+                upload_url,
+                files=files,
+                data=data,
+                headers=headers,
+                cookies=cookies,
+                verify=False,
+                timeout=60
+            )
+            resp.raise_for_status()
+
+        add_log(f"Answer ISO uploaded successfully")
+        return f"{storage}:iso/{iso_name}"
+
+    except Exception as e:
+        add_log(f"Failed to create answer ISO: {str(e)}")
+        return None
+    finally:
+        # Cleanup
+        if tmp_dir and os.path.exists(tmp_dir):
+            try:
+                import shutil
+                shutil.rmtree(tmp_dir)
+            except Exception:
+                pass
+        if iso_path and os.path.exists(iso_path):
+            try:
+                os.unlink(iso_path)
+            except Exception:
+                pass
+
+
 @app.route("/api/health", methods=["GET"])
 def health():
     """Health check endpoint"""
@@ -369,6 +491,14 @@ def create_nested_proxmox_task(config):
             state["status"] = "error"
             return
 
+        # Create answer ISO for automated installation
+        vm_name = config.get("name", "nested-proxmox")
+        answer_iso = create_and_upload_answer_iso(
+            proxmox, node, storage="local",
+            password="root",  # Default root password for nested Proxmox
+            hostname=vm_name
+        )
+
         # Find next available VMID
         vmid = config.get("vmid")
         if not vmid:
@@ -382,14 +512,13 @@ def create_nested_proxmox_task(config):
         # cpu=host passes through host CPU features including VMX/SVM for nested virt
         vm_config = {
             "vmid": vmid,
-            "name": config.get("name", "nested-proxmox"),
+            "name": vm_name,
             "memory": config.get("memory", 16384),
             "cores": config.get("cores", 4),
             "sockets": 1,
             "cpu": "host",
             "net0": f"virtio,bridge={config.get('bridge', 'vmbr0')}",
             "scsihw": "virtio-scsi-single",
-            "boot": "order=scsi0;ide2",
             "agent": "enabled=1",
         }
 
@@ -399,15 +528,18 @@ def create_nested_proxmox_task(config):
         disk_size = (config.get("disk_size") or "100G").rstrip("Gg")
         vm_config["scsi0"] = f"{storage}:{disk_size}"
 
-        # Add cloud-init for guest/guest credentials
-        vm_config["ide2"] = f"{storage}:cloudinit"
-        vm_config["ciuser"] = "guest"
-        vm_config["cipassword"] = "guest"
-        vm_config["ipconfig0"] = "ip=dhcp"
+        # Attach the Proxmox installer ISO as primary CD-ROM
+        vm_config["ide2"] = f"{iso_volid},media=cdrom"
 
-        # Attach the auto-downloaded Proxmox ISO
-        vm_config["ide3"] = f"{iso_volid},media=cdrom"
-        vm_config["boot"] = "order=ide3;scsi0"  # Boot from ISO first
+        # Attach answer ISO as secondary CD-ROM for automated installation
+        if answer_iso:
+            vm_config["ide3"] = f"{answer_iso},media=cdrom"
+            add_log("Automated installation configured with answer file")
+        else:
+            add_log("Manual installation required - answer ISO not available")
+
+        # Boot from CD-ROM first
+        vm_config["boot"] = "order=ide2;scsi0"
 
         add_log(f"Creating VM with config: {vm_config['name']}")
 
@@ -425,6 +557,10 @@ def create_nested_proxmox_task(config):
             try:
                 proxmox.nodes(node).qemu(vmid).status.start.post()
                 add_log("Nested Proxmox VM started successfully")
+                if answer_iso:
+                    add_log("Automated Proxmox installation will begin shortly...")
+                    add_log("Installation takes ~5-10 minutes. VM will reboot when complete.")
+                    add_log("Root password will be: root")
             except Exception as start_err:
                 add_log(f"Warning: Could not auto-start VM: {str(start_err)}")
                 add_log("Please start the VM manually from Proxmox UI")
