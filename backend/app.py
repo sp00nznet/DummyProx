@@ -229,7 +229,7 @@ def create_and_upload_answer_iso(proxmox, node, storage, password="root", hostna
     """Create an ISO containing the answer file and upload to Proxmox"""
     add_log("Creating automated installer answer file...")
 
-    iso_name = "proxmox-auto-answer.iso"
+    iso_name = "proxmox-answer.iso"  # Changed name to force recreation with correct label
 
     # Check if already exists
     existing = check_iso_exists(proxmox, node, storage, iso_name)
@@ -251,13 +251,15 @@ def create_and_upload_answer_iso(proxmox, node, storage, password="root", hostna
             f.write(answer_content)
 
         # Create ISO using genisoimage or mkisofs
+        # IMPORTANT: Label must be "INTRUCTION" - this is an intentional typo
+        # that Proxmox automated installer looks for
         iso_path = tempfile.mktemp(suffix=".iso")
 
         try:
             # Try genisoimage first (common on Debian/Ubuntu)
             subprocess.run([
                 "genisoimage", "-o", iso_path,
-                "-V", "PROXMOX_ANSWER",
+                "-V", "INTRUCTION",
                 "-r", "-J",
                 tmp_dir
             ], check=True, capture_output=True)
@@ -266,7 +268,7 @@ def create_and_upload_answer_iso(proxmox, node, storage, password="root", hostna
                 # Try mkisofs as fallback
                 subprocess.run([
                     "mkisofs", "-o", iso_path,
-                    "-V", "PROXMOX_ANSWER",
+                    "-V", "INTRUCTION",
                     "-r", "-J",
                     tmp_dir
                 ], check=True, capture_output=True)
@@ -558,9 +560,9 @@ def create_nested_proxmox_task(config):
                 proxmox.nodes(node).qemu(vmid).status.start.post()
                 add_log("Nested Proxmox VM started successfully")
                 if answer_iso:
-                    add_log("Automated Proxmox installation will begin shortly...")
+                    add_log(">>> SELECT 'Automated Installation' FROM BOOT MENU <<<")
+                    add_log("The answer file will configure: DHCP network, ext4, root password='root'")
                     add_log("Installation takes ~5-10 minutes. VM will reboot when complete.")
-                    add_log("Root password will be: root")
             except Exception as start_err:
                 add_log(f"Warning: Could not auto-start VM: {str(start_err)}")
                 add_log("Please start the VM manually from Proxmox UI")
