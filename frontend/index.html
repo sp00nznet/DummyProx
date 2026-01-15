@@ -505,6 +505,9 @@
                             <input type="text" id="nestedBridge" value="vmbr0">
                         </div>
                     </div>
+                    <div class="alert info" style="margin-bottom: 15px;">
+                        Latest Proxmox VE ISO will be automatically downloaded if needed.
+                    </div>
                     <button id="createNestedBtn" class="btn btn-primary" onclick="createNested()" disabled>
                         Create Nested Proxmox
                     </button>
@@ -752,6 +755,7 @@
         // Create nested Proxmox
         async function createNested() {
             const node = document.getElementById('node').value;
+
             if (!node) {
                 alert('Please select a node');
                 return;

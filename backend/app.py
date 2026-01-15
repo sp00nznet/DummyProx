@@ -4,15 +4,21 @@ Flask backend for managing nested Proxmox deployments
 """
 
 import os
+import re
 import random
 import time
 import threading
+import tempfile
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from proxmoxer import ProxmoxAPI
 import urllib3
+import requests
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Proxmox ISO download URL pattern
+PROXMOX_ISO_MIRROR = "http://download.proxmox.com/iso/"
 
 app = Flask(__name__)
 CORS(app)
@@ -58,6 +64,114 @@ def generate_vm_names(count, theme=None):
 
     base_names = THEMES[theme][:count]
     return [f"{name}-{str(i+1).zfill(2)}" for i, name in enumerate(base_names)]
+
+
+def get_latest_proxmox_iso():
+    """Get the latest Proxmox VE ISO filename and URL from the mirror"""
+    try:
+        response = requests.get(PROXMOX_ISO_MIRROR, timeout=30)
+        response.raise_for_status()
+
+        # Find all proxmox-ve ISO links (not -debug, not torrents)
+        pattern = r'proxmox-ve_(\d+\.\d+)-(\d+)\.iso'
+        matches = re.findall(pattern, response.text)
+
+        if not matches:
+            return None, None
+
+        # Sort by version and release number to get latest
+        versions = [(f"proxmox-ve_{m[0]}-{m[1]}.iso", m[0], int(m[1])) for m in matches]
+        versions.sort(key=lambda x: (x[1], x[2]), reverse=True)
+
+        latest_iso = versions[0][0]
+        return latest_iso, f"{PROXMOX_ISO_MIRROR}{latest_iso}"
+    except Exception as e:
+        add_log(f"Error fetching ISO list: {str(e)}")
+        return None, None
+
+
+def check_iso_exists(proxmox, node, storage, iso_name):
+    """Check if an ISO already exists on the Proxmox storage"""
+    try:
+        content = proxmox.nodes(node).storage(storage).content.get()
+        for item in content:
+            if item.get("content") == "iso" and iso_name in item.get("volid", ""):
+                return item.get("volid")
+        return None
+    except Exception:
+        return None
+
+
+def download_and_upload_iso(proxmox, node, storage, iso_url, iso_name):
+    """Download ISO and upload to Proxmox storage"""
+    add_log(f"Downloading {iso_name} from Proxmox mirror...")
+
+    # Download to temp file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".iso") as tmp_file:
+        try:
+            response = requests.get(iso_url, stream=True, timeout=600)
+            response.raise_for_status()
+
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+
+            for chunk in response.iter_content(chunk_size=8192):
+                tmp_file.write(chunk)
+                downloaded += len(chunk)
+                if total_size > 0 and downloaded % (50 * 1024 * 1024) < 8192:  # Log every ~50MB
+                    pct = int(downloaded / total_size * 100)
+                    add_log(f"Download progress: {pct}%")
+
+            tmp_file.flush()
+            tmp_path = tmp_file.name
+            add_log("Download complete, uploading to Proxmox...")
+
+        except Exception as e:
+            add_log(f"Download failed: {str(e)}")
+            return None
+
+    # Upload to Proxmox
+    try:
+        with open(tmp_path, 'rb') as f:
+            proxmox.nodes(node).storage(storage).upload.post(
+                content='iso',
+                filename=iso_name,
+                file=f
+            )
+        add_log(f"ISO uploaded successfully to {storage}")
+        return f"{storage}:iso/{iso_name}"
+    except Exception as e:
+        add_log(f"Upload failed: {str(e)}")
+        return None
+    finally:
+        # Clean up temp file
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+
+def ensure_proxmox_iso(proxmox, node, storage="local"):
+    """Ensure Proxmox ISO is available, download if needed"""
+    add_log("Checking for Proxmox VE ISO...")
+
+    # Get latest ISO info
+    iso_name, iso_url = get_latest_proxmox_iso()
+    if not iso_name:
+        add_log("Could not determine latest Proxmox ISO")
+        return None
+
+    add_log(f"Latest Proxmox VE ISO: {iso_name}")
+
+    # Check if already exists
+    existing = check_iso_exists(proxmox, node, storage, iso_name)
+    if existing:
+        add_log(f"ISO already available: {existing}")
+        return existing
+
+    # Download and upload
+    add_log(f"ISO not found on server, downloading...")
+    return download_and_upload_iso(proxmox, node, storage, iso_url, iso_name)
 
 
 @app.route("/api/health", methods=["GET"])
@@ -219,6 +333,13 @@ def create_nested_proxmox_task(config):
 
         add_log("Starting nested Proxmox creation...")
 
+        # Automatically get/download latest Proxmox ISO
+        iso_volid = ensure_proxmox_iso(proxmox, node, storage="local")
+        if not iso_volid:
+            add_log("ERROR: Could not obtain Proxmox ISO. Please upload manually.")
+            state["status"] = "error"
+            return
+
         # Find next available VMID
         vmid = config.get("vmid")
         if not vmid:
@@ -255,10 +376,9 @@ def create_nested_proxmox_task(config):
         vm_config["cipassword"] = "guest"
         vm_config["ipconfig0"] = "ip=dhcp"
 
-        # Add ISO if provided (uses ide3 since ide2 is cloud-init)
-        if config.get("iso"):
-            vm_config["ide3"] = f"{config['iso']},media=cdrom"
-            vm_config["boot"] = "order=scsi0;ide3"
+        # Attach the auto-downloaded Proxmox ISO
+        vm_config["ide3"] = f"{iso_volid},media=cdrom"
+        vm_config["boot"] = "order=ide3;scsi0"  # Boot from ISO first
 
         add_log(f"Creating VM with config: {vm_config['name']}")
 
