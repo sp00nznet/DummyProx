@@ -13,11 +13,13 @@ COPY backend/ .
 # Stage 2: Final image with nginx
 FROM python:3.11-slim
 
-# Install nginx and supervisor
+# Install nginx, supervisor, and curl (for healthcheck)
 RUN apt-get update && apt-get install -y \
     nginx \
     supervisor \
-    && rm -rf /var/lib/apt/lists/*
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/log/supervisor /var/log/nginx
 
 # Copy backend
 WORKDIR /app
