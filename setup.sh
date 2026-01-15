@@ -66,6 +66,9 @@ else
 fi
 echo -e "${GREEN}✓ Cleanup complete${NC}"
 
+# Create log directories for volume mount
+mkdir -p logs/supervisor logs/nginx
+
 # Build and run
 echo -e "${YELLOW}[4/5]${NC} Building and starting DummyProx..."
 echo ""
